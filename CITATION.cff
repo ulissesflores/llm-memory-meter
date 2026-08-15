@@ -28,8 +28,11 @@ identifiers:
     value: "10.5281/zenodo.21941274"
     description: "Concept DOI (Zenodo) — resolves to the latest version. Use this for citations."
   - type: doi
+    value: "10.5281/zenodo.21941290"
+    description: "Versioned DOI (Zenodo) for v1.0.0"
+  - type: doi
     value: "10.5281/zenodo.21941275"
-    description: "Versioned DOI (Zenodo) for the first archived deposit"
+    description: "Versioned DOI (Zenodo) for the v1.0.0-rc1 deposit that minted the concept DOI"
   - type: url
     value: "https://github.com/ulissesflores/llm-memory-meter"
     description: "Software source repository"
