@@ -24,6 +24,12 @@ authors:
 type: software
 license: Apache-2.0
 identifiers:
+  - type: doi
+    value: "10.5281/zenodo.21941274"
+    description: "Concept DOI (Zenodo) — resolves to the latest version. Use this for citations."
+  - type: doi
+    value: "10.5281/zenodo.21941275"
+    description: "Versioned DOI (Zenodo) for the first archived deposit"
   - type: url
     value: "https://github.com/ulissesflores/llm-memory-meter"
     description: "Software source repository"
@@ -36,7 +42,21 @@ identifiers:
 repository-code: "https://github.com/ulissesflores/llm-memory-meter"
 url: "https://ulissesflores.com/artigos/memoria-llm-local"
 version: 1.0.0
-date-released: 2026-08-14
+date-released: 2026-08-15
+doi: "10.5281/zenodo.21941274"
+
+preferred-citation:
+  type: software
+  title: "llm-memory-meter: measuring the real memory footprint of a local LLM from its official configuration"
+  authors:
+    - family-names: Flores
+      given-names: Carlos Ulisses
+      orcid: "https://orcid.org/0000-0002-6034-7765"
+  year: 2026
+  version: 1.0.0
+  doi: "10.5281/zenodo.21941274"
+  url: "https://doi.org/10.5281/zenodo.21941274"
+  license: Apache-2.0
 keywords:
   - LLM inference
   - KV cache

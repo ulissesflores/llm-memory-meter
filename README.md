@@ -6,6 +6,7 @@
 overestimates a 2026 hybrid model by up to 20x. This program reads the model's own
 `config.json` and prints both numbers side by side.**
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.21941274.svg)](https://doi.org/10.5281/zenodo.21941274)
 [![License: Apache 2.0](https://img.shields.io/badge/code-Apache--2.0-blue.svg)](LICENSES/Apache-2.0.txt)
 [![License: CC BY 4.0](https://img.shields.io/badge/docs-CC--BY--4.0-lightgrey.svg)](LICENSES/CC-BY-4.0.txt)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/)
@@ -217,14 +218,20 @@ MSc AI candidate, American Global Tech University.
 
 ```bibtex
 @software{flores_llm_memory_meter_2026,
-  author  = {Flores, Carlos Ulisses},
-  title   = {llm-memory-meter: measuring the real memory footprint of a local LLM
-             from its official configuration},
-  year    = {2026},
-  version = {1.0.0},
-  url     = {https://github.com/ulissesflores/llm-memory-meter}
+  author    = {Flores, Carlos Ulisses},
+  title     = {llm-memory-meter: measuring the real memory footprint of a local LLM
+               from its official configuration},
+  year      = {2026},
+  version   = {1.0.0},
+  doi       = {10.5281/zenodo.21941274},
+  publisher = {Zenodo},
+  url       = {https://doi.org/10.5281/zenodo.21941274}
 }
 ```
+
+Cite the **concept DOI** above — [10.5281/zenodo.21941274](https://doi.org/10.5281/zenodo.21941274)
+— which always resolves to the latest version. Each release also receives its own
+versioned DOI; use one of those only when you need to point at a specific version.
 
 Machine-readable metadata: [`CITATION.cff`](CITATION.cff) and
 [`codemeta.json`](codemeta.json).

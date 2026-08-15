@@ -4,8 +4,9 @@
   "name": "llm-memory-meter",
   "description": "Zero-dependency program that reads a language model's official config.json and reports its real memory footprint — weights per quantization format and KV cache per context length — side by side with the widely shared one-line formula, which overestimates a 2026 hybrid model by up to 20x. Companion to the article 'Como saber se um modelo de IA roda no seu computador — e por quê'.",
   "version": "1.0.0",
+  "identifier": "https://doi.org/10.5281/zenodo.21941274",
   "dateCreated": "2026-08-14",
-  "datePublished": "2026-08-14",
+  "datePublished": "2026-08-15",
   "license": "https://spdx.org/licenses/Apache-2.0",
   "codeRepository": "https://github.com/ulissesflores/llm-memory-meter",
   "relatedLink": [
