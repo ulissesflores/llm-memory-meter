@@ -1,0 +1,34 @@
+llm-memory-meter — companion program for the article "Quanta memória um modelo de
+linguagem consome no seu computador" (https://ulissesflores.com/artigos/memoria-llm-local)
+Copyright 2026 Carlos Ulisses Flores, Codex Hash Research Laboratory.
+
+This repository is dual-licensed:
+
+  * Source code (medidor.py, run_all.py, make_provenance.py, tests/) —
+    Apache License 2.0. See LICENSE and LICENSES/Apache-2.0.txt.
+
+  * Documentation and declared data (README.md, docs/*, data/*) — Creative Commons
+    Attribution 4.0 International (CC BY 4.0). See LICENSES/CC-BY-4.0.txt.
+
+Third-party content redistributed here
+--------------------------------------
+The two files in configs/ are unmodified copies of model configuration files published
+on the Hugging Face Hub. They are redistributed for reproducibility, so the published
+numbers can be recomputed from the exact bytes that produced them. They are NOT covered
+by the licenses above; each remains under its upstream terms.
+
+  * configs/Qwen3.8-27B.config.json
+    From https://huggingface.co/Qwen/Qwen3.8-27B (retrieved 2026-08-14)
+    Upstream license: Apache-2.0
+    SHA-256: 191e0af232104ed8b65258cf3fb2b842e288008baca7633c11b82a1ac7203aab
+
+  * configs/gemma-4-26B-A4B-it.config.json
+    From https://huggingface.co/google/gemma-4-26B-A4B-it (retrieved 2026-08-14)
+    Upstream license: declared apache-2.0 in the Hub metadata, with license_link to
+    the Gemma 4 terms of use (https://ai.google.dev/gemma/docs/gemma_4_license).
+    Where the two differ, the Gemma terms govern the model; this file is redistributed
+    with attribution on that basis.
+    SHA-256: ed0c1eb3633de771906e9ba004a44cc5635bcc06ee2062077c3d2e88a50707d3
+
+Both copies were byte-identical to their upstream sources on 2026-08-14. Run
+`pytest -m network` to check whether upstream has changed since.

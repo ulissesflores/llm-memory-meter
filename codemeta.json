@@ -1,0 +1,56 @@
+{
+  "@context": "https://doi.org/10.5063/schema/codemeta-2.0",
+  "@type": "SoftwareSourceCode",
+  "name": "llm-memory-meter",
+  "description": "Zero-dependency program that reads a language model's official config.json and reports its real memory footprint — weights per quantization format and KV cache per context length — side by side with the widely shared one-line formula, which overestimates a 2026 hybrid model by up to 20x. Companion to the article 'Como saber se um modelo de IA roda no seu computador — e por quê'.",
+  "version": "1.0.0",
+  "dateCreated": "2026-08-14",
+  "datePublished": "2026-08-14",
+  "license": "https://spdx.org/licenses/Apache-2.0",
+  "codeRepository": "https://github.com/ulissesflores/llm-memory-meter",
+  "relatedLink": [
+    "https://ulissesflores.com/artigos/memoria-llm-local",
+    "https://ulissesflores.com/en/artigos/memoria-llm-local"
+  ],
+  "programmingLanguage": {
+    "@type": "ComputerLanguage",
+    "name": "Python",
+    "version": ">=3.11"
+  },
+  "runtimePlatform": "Python 3.11+",
+  "softwareRequirements": [],
+  "operatingSystem": ["Linux", "macOS", "Windows"],
+  "developmentStatus": "active",
+  "keywords": [
+    "LLM inference",
+    "KV cache",
+    "grouped-query attention",
+    "sliding-window attention",
+    "linear attention",
+    "quantization",
+    "local inference",
+    "memory footprint",
+    "reproducibility"
+  ],
+  "author": [
+    {
+      "@type": "Person",
+      "@id": "https://orcid.org/0000-0002-6034-7765",
+      "givenName": "Carlos Ulisses",
+      "familyName": "Flores",
+      "email": "c.ulisses@gmail.com",
+      "affiliation": {
+        "@type": "Organization",
+        "name": "Codex Hash Research Laboratory"
+      }
+    }
+  ],
+  "maintainer": {
+    "@type": "Person",
+    "@id": "https://orcid.org/0000-0002-6034-7765",
+    "givenName": "Carlos Ulisses",
+    "familyName": "Flores"
+  },
+  "readme": "https://github.com/ulissesflores/llm-memory-meter/blob/main/README.md",
+  "issueTracker": "https://github.com/ulissesflores/llm-memory-meter/issues"
+}

@@ -1,0 +1,94 @@
+cff-version: 1.2.0
+message: "If you use this work, please cite it as below."
+title: "llm-memory-meter: measuring the real memory footprint of a local LLM from its official configuration"
+abstract: >-
+  Companion program for the article "Como saber se um modelo de IA roda no seu computador
+  — e por quê" (Carlos Ulisses Flores, 2026). The one-line KV-cache formula that
+  circulates widely (batch x context x layers x hidden_size x 2 x bytes) is exact only for
+  pure Multi-Head Attention, and overestimates a 2026 hybrid model by up to 20x. This
+  zero-dependency program reads a model's official config.json and reports both figures
+  side by side, applying Grouped-Query Attention, sliding-window saturation, constant-size
+  linear/recurrent state, shared K=V, and real quantization bit-widths. Measured on
+  Qwen3.8-27B (19.8x overestimate at 256K context) and Gemma 4 26B A4B (8.2x). Every
+  number the article publishes is asserted by the test suite against frozen upstream
+  configs and sealed in a SHA-256 provenance chain.
+authors:
+  - family-names: Flores
+    given-names: Carlos Ulisses
+    email: c.ulisses@gmail.com
+    orcid: "https://orcid.org/0000-0002-6034-7765"
+    website: "https://ulissesflores.com"
+    affiliation: "Codex Hash Research Laboratory (CTO & Chief Researcher); American Global Tech University (MSc AI candidate)"
+    city: São Paulo
+    country: BR
+type: software
+license: Apache-2.0
+identifiers:
+  - type: url
+    value: "https://github.com/ulissesflores/llm-memory-meter"
+    description: "Software source repository"
+  - type: url
+    value: "https://ulissesflores.com/en/artigos/memoria-llm-local"
+    description: "Companion article (English)"
+  - type: url
+    value: "https://ulissesflores.com/artigos/memoria-llm-local"
+    description: "Companion article (Portuguese, original)"
+repository-code: "https://github.com/ulissesflores/llm-memory-meter"
+url: "https://ulissesflores.com/artigos/memoria-llm-local"
+version: 1.0.0
+date-released: 2026-08-14
+keywords:
+  - LLM inference
+  - KV cache
+  - grouped-query attention
+  - sliding-window attention
+  - linear attention
+  - quantization
+  - local inference
+  - memory footprint
+  - reproducibility
+references:
+  - type: article
+    authors:
+      - family-names: Ainslie
+        given-names: "J."
+      - family-names: Lee-Thorp
+        given-names: "J."
+      - family-names: de Jong
+        given-names: "M."
+      - family-names: Zemlyanskiy
+        given-names: "Y."
+      - family-names: Lebrón
+        given-names: "F."
+      - family-names: Sanghai
+        given-names: "S."
+    title: "GQA: Training Generalized Multi-Query Transformer Models from Multi-Head Checkpoints"
+    year: 2023
+    url: "https://arxiv.org/abs/2305.13245"
+  - type: article
+    authors:
+      - family-names: Shazeer
+        given-names: "N."
+    title: "Fast Transformer Decoding: One Write-Head is All You Need"
+    year: 2019
+    url: "https://arxiv.org/abs/1911.02150"
+  - type: article
+    authors:
+      - family-names: Yang
+        given-names: "S."
+      - family-names: Kautz
+        given-names: "J."
+      - family-names: Hatamizadeh
+        given-names: "A."
+    title: "Gated Delta Networks: Improving Mamba2 with Delta Rule"
+    year: 2024
+    url: "https://arxiv.org/abs/2412.06464"
+  - type: article
+    authors:
+      - family-names: Gu
+        given-names: "A."
+      - family-names: Dao
+        given-names: "T."
+    title: "Mamba: Linear-Time Sequence Modeling with Selective State Spaces"
+    year: 2023
+    url: "https://arxiv.org/abs/2312.00752"

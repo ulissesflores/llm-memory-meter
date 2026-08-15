@@ -1,0 +1,157 @@
+{
+  "_about": {
+    "purpose": "Every quantitative claim the companion article makes that this program derives. Each entry is asserted by tests/test_published_numbers.py, so code and article cannot drift apart without turning CI red.",
+    "article": {
+      "pt-BR": "https://ulissesflores.com/artigos/memoria-llm-local",
+      "en": "https://ulissesflores.com/en/artigos/memoria-llm-local",
+      "published": "2026-08-14"
+    },
+    "method": "Derived from the models' official config.json (frozen in configs/). No model was executed; these are architectural floors, not runtime measurements.",
+    "verified": "2026-08-14",
+    "units": "GiB = 2^30 bytes (what an OS reports). GB = 10^9 bytes (what a vendor advertises).",
+    "rounding": "Values are quoted as the article prints them; tests assert with the tolerance recorded in each entry's 'tolerance' field."
+  },
+
+  "Qwen3.8-27B": {
+    "source": "https://huggingface.co/Qwen/Qwen3.8-27B",
+    "config_sha256": "191e0af232104ed8b65258cf3fb2b842e288008baca7633c11b82a1ac7203aab",
+    "config_retrieved": "2026-08-14",
+    "license": "apache-2.0",
+
+    "architecture": {
+      "total_params": 27781427952,
+      "layers": 64,
+      "linear_attention_layers": 48,
+      "full_attention_layers": 16,
+      "hidden_size": 5120,
+      "attention_heads": 24,
+      "key_value_heads": 4,
+      "head_dim": 256,
+      "gqa_ratio": 6,
+      "kv_width": 1024,
+      "max_context": 262144
+    },
+
+    "weights_GiB": {
+      "BF16": 51.75,
+      "INT8": 25.87,
+      "4-bit ideal": 12.94,
+      "Q4_K_M": 15.82,
+      "tolerance": 0.01,
+      "note": "Article prints 51,7 / 25,9 / 12,9 / 15,8 — one decimal place."
+    },
+
+    "quantization": {
+      "Q4_K_M_bits_per_weight": 4.89,
+      "Q4_K_M_bytes_per_param": 0.61,
+      "overhead_vs_ideal_4bit_pct": 22.25,
+      "source": "https://github.com/ggml-org/llama.cpp/blob/master/tools/quantize/README.md"
+    },
+
+    "linear_state": {
+      "MiB_per_layer": 3.0,
+      "total_GiB": 0.14,
+      "tolerance": 0.01,
+      "note": "Constant: recurrent state does not grow with context."
+    },
+
+    "cache_per_token": {
+      "KiB_per_full_attention_layer": 4.0,
+      "KiB_total_all_layers": 64.0,
+      "note": "2 (K and V) x 4 kv heads x 256 head_dim x 2 bytes = 4096 B per full-attention layer; 16 such layers."
+    },
+
+    "cache_GiB_bf16_batch1": {
+      "1024": 0.20,
+      "8192": 0.64,
+      "32768": 2.14,
+      "131072": 8.14,
+      "262144": 16.14,
+      "tolerance": 0.01
+    },
+
+    "total_GiB_q4km_plus_cache": {
+      "1024": 16.0,
+      "8192": 16.4,
+      "32768": 17.9,
+      "131072": 23.9,
+      "262144": 31.9,
+      "tolerance": 0.1,
+      "note": "The article adds the already-rounded weight figure (15,8 GiB) to the cache, so these totals sit up to 0.06 GiB below the full-precision sum."
+    },
+
+    "viral_formula_overestimate_x": {
+      "1024": 6.2,
+      "8192": 15.6,
+      "32768": 18.7,
+      "131072": 19.7,
+      "262144": 19.8,
+      "tolerance": 0.05,
+      "headline": "~20x at long context"
+    },
+
+    "million_token_scenario": {
+      "context": 1048576,
+      "cache_GiB": 64.1,
+      "total_GiB": 80.0,
+      "tolerance": 0.1,
+      "note": "Beyond max_position_embeddings; the article uses it to show what the advertised 1M context would cost."
+    },
+
+    "rtx_3090_scenario": {
+      "vram_GB": 24,
+      "usable_GB_after_overhead": 21,
+      "overhead_GB": "2 to 3",
+      "free_after_weights_GiB": 5,
+      "max_context_16bit_cache": 80000,
+      "max_context_8bit_cache": 160000,
+      "tolerance_tokens": 2000,
+      "note": "Overhead is the one range in the article not measured by this program; it comes from reported runtime behavior and varies by inference engine."
+    },
+
+    "naming_gap": {
+      "nominal_params": 27000000000,
+      "pct_more_than_nominal": 2.89,
+      "extra_GiB_at_bf16": 1.46,
+      "tolerance": 0.01
+    }
+  },
+
+  "gemma-4-26B-A4B-it": {
+    "source": "https://huggingface.co/google/gemma-4-26B-A4B-it",
+    "config_sha256": "ed0c1eb3633de771906e9ba004a44cc5635bcc06ee2062077c3d2e88a50707d3",
+    "config_retrieved": "2026-08-14",
+    "license": "apache-2.0",
+    "license_link": "https://ai.google.dev/gemma/docs/gemma_4_license",
+    "role": "The model shown in the viral infographic the article corrects.",
+
+    "architecture": {
+      "layers": 30,
+      "sliding_attention_layers": 25,
+      "full_attention_layers": 5,
+      "hidden_size": 2816,
+      "attention_heads": 16,
+      "key_value_heads": 8,
+      "head_dim": 256,
+      "global_head_dim": 512,
+      "sliding_window": 1024,
+      "shared_k_eq_v": true
+    },
+
+    "viral_formula_overestimate_x": {
+      "1024": 2.4,
+      "8192": 6.3,
+      "32768": 7.7,
+      "131072": 8.1,
+      "262144": 8.2,
+      "tolerance": 0.05
+    }
+  },
+
+  "unit_conversions": {
+    "GiB_over_GB_pct": 7.37,
+    "tokens_256K_vs_256000_pct": 2.4,
+    "one_TB_drive_shown_as_GB": 931,
+    "tolerance": 0.05
+  }
+}

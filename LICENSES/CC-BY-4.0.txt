@@ -1,0 +1,18 @@
+Creative Commons Attribution 4.0 International (CC BY 4.0)
+
+The paper text and figures in this repository (docs/paper/paper-final.pdf,
+docs/paper/paper-final.docx, and output/figures/*) are licensed under the
+Creative Commons Attribution 4.0 International License.
+
+You are free to share and adapt the material for any purpose, even commercially,
+provided you give appropriate credit, provide a link to the license, and indicate
+if changes were made.
+
+Full legal text: https://creativecommons.org/licenses/by/4.0/legalcode
+Human-readable summary: https://creativecommons.org/licenses/by/4.0/
+
+Attribution:
+  Carlos Ulisses Flores, "O limiar importa mais que o modelo: dominância do ponto
+  de operação na detecção de fraude em cartões: um estudo de caso confirmatório e
+  auditável no benchmark ULB/Worldline", Codex Hash Research Laboratory (2026).
+  ORCID: https://orcid.org/0000-0002-6034-7765

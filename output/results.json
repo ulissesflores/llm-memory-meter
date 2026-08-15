@@ -1,0 +1,137 @@
+{
+  "Qwen3.8-27B": {
+    "config_file": "configs/Qwen3.8-27B.config.json",
+    "label": "Qwen3.8-27B (the article's worked example)",
+    "measurement": {
+      "architecture": {
+        "global_head_dim": null,
+        "head_dim": 256,
+        "hidden": 5120,
+        "k_eq_v": false,
+        "layer_counts": {
+          "full_attention": 16,
+          "linear_attention": 48
+        },
+        "layers": 64,
+        "max_context": 262144,
+        "n_heads": 24,
+        "n_kv": 4,
+        "window": null
+      },
+      "batch": 1,
+      "bytes_cache": 2,
+      "cache": {
+        "1024": {
+          "overestimate_x": 6.153846153846154,
+          "real_GiB": 0.203125,
+          "viral_GiB": 1.25
+        },
+        "8192": {
+          "overestimate_x": 15.609756097560975,
+          "real_GiB": 0.640625,
+          "viral_GiB": 10.0
+        },
+        "32768": {
+          "overestimate_x": 18.686131386861312,
+          "real_GiB": 2.140625,
+          "viral_GiB": 40.0
+        },
+        "131072": {
+          "overestimate_x": 19.65451055662188,
+          "real_GiB": 8.140625,
+          "viral_GiB": 160.0
+        },
+        "262144": {
+          "overestimate_x": 19.82575024201355,
+          "real_GiB": 16.140625,
+          "viral_GiB": 320.0
+        }
+      },
+      "linear_state": {
+        "bytes_per_layer": 3145728,
+        "n_layers": 48,
+        "total_GiB": 0.140625
+      },
+      "weights": {
+        "4-bit ideal": {
+          "GB": 13.890713976,
+          "GiB": 12.93673550337553,
+          "bytes": 13890713976.0
+        },
+        "BF16": {
+          "GB": 55.562855904,
+          "GiB": 51.74694201350212,
+          "bytes": 55562855904.0
+        },
+        "INT8": {
+          "GB": 27.781427952,
+          "GiB": 25.87347100675106,
+          "bytes": 27781427952.0
+        },
+        "Q4_K_M (4.89 bpw)": {
+          "GB": 16.981397835659997,
+          "GiB": 15.815159152876584,
+          "bytes": 16981397835.659998
+        }
+      }
+    },
+    "n_params": 27781427952
+  },
+  "gemma-4-26B-A4B-it": {
+    "config_file": "configs/gemma-4-26B-A4B-it.config.json",
+    "label": "Gemma 4 26B A4B (the model in the viral infographic)",
+    "measurement": {
+      "architecture": {
+        "global_head_dim": 512,
+        "head_dim": 256,
+        "hidden": 2816,
+        "k_eq_v": true,
+        "layer_counts": {
+          "full_attention": 5,
+          "sliding_attention": 25
+        },
+        "layers": 30,
+        "max_context": 262144,
+        "n_heads": 16,
+        "n_kv": 8,
+        "window": 1024
+      },
+      "batch": 1,
+      "bytes_cache": 2,
+      "cache": {
+        "1024": {
+          "overestimate_x": 2.357142857142857,
+          "real_GiB": 0.13671875,
+          "viral_GiB": 0.322265625
+        },
+        "8192": {
+          "overestimate_x": 6.285714285714286,
+          "real_GiB": 0.41015625,
+          "viral_GiB": 2.578125
+        },
+        "32768": {
+          "overestimate_x": 7.6521739130434785,
+          "real_GiB": 1.34765625,
+          "viral_GiB": 10.3125
+        },
+        "131072": {
+          "overestimate_x": 8.091954022988507,
+          "real_GiB": 5.09765625,
+          "viral_GiB": 41.25
+        },
+        "262144": {
+          "overestimate_x": 8.170212765957446,
+          "real_GiB": 10.09765625,
+          "viral_GiB": 82.5
+        }
+      },
+      "linear_state": {
+        "bytes_per_layer": 0,
+        "n_layers": 0,
+        "total_GiB": 0.0
+      },
+      "weights": {}
+    },
+    "n_params": null
+  }
+}

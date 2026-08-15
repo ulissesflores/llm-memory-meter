@@ -1,17 +1,56 @@
 #!/usr/bin/env python3
-"""Medidor de memória de LLM local a partir do config.json REAL do modelo.
+"""Measure the real memory footprint of a local LLM from its official ``config.json``.
 
-Motivo de existir: a fórmula que circula em cards virais
-(`KV = batch x context x layers x hidden_size x 2 x bytes`) só vale para
-Multi-Head Attention pura. Modelos abertos de 2026 usam GQA, atenção com janela
-deslizante, atenção linear e K=V compartilhado — cada um deles derruba a conta.
-Este script lê o config do modelo e calcula os dois números lado a lado.
+Why this exists
+---------------
+The formula that circulates in viral infographics,
 
-Uso:
-    python3 medidor.py fontes/config-Qwen3.8-27B.json --params 27781427952
-    python3 medidor.py --repo Qwen/Qwen3.8-27B        # baixa config + params do HF
+.. code-block:: text
 
-Sem argumento nenhum, roda os dois modelos do artigo a partir dos configs salvos.
+    KV_cache = batch x context x layers x hidden_size x 2 x bytes_per_element
+
+is only correct for pure Multi-Head Attention. Every open model shipped in 2026 breaks
+at least one of its assumptions:
+
+- **Grouped-Query Attention (GQA)** — key/value heads are shared across query heads, so
+  ``hidden_size`` is the wrong width. The cache is ``num_key_value_heads x head_dim``.
+- **Sliding-window attention** — the cache stops growing once the window is full, so
+  those layers are capped, not linear in context length.
+- **Linear (recurrent) attention** — the layer keeps a fixed-size state that does not
+  grow with context at all.
+- **Shared K=V** — when a model stores one tensor instead of two, the factor of 2 is
+  wrong.
+
+This program reads the architecture the model actually declares and prints both numbers
+side by side: what the viral formula predicts, and what the model really allocates.
+
+Usage
+-----
+``python3 medidor.py``
+    Run the two models discussed in the companion article, from the frozen configs
+    shipped in ``configs/``. No network access.
+
+``python3 medidor.py --repo Qwen/Qwen3.8-27B``
+    Download ``config.json`` and the parameter count from the Hugging Face Hub.
+
+``python3 medidor.py configs/Qwen3.8-27B.config.json --params 27781427952``
+    Read a local config file; supply the parameter count yourself.
+
+Options
+-------
+``--batch N``
+    Number of concurrent sequences (default 1). The cache scales linearly with it.
+
+``--bytes-cache N``
+    Bytes per cached element: 2 for BF16/FP16 (default), 1 for an 8-bit quantized cache.
+
+Notes
+-----
+Every number is a *theoretical floor* derived from the declared architecture. The model
+is never executed, so runtime overhead (allocator padding, activations, framework
+buffers) is not included and always costs somewhat more in practice.
+
+Companion article: https://ulissesflores.com/artigos/memoria-llm-local
 """
 
 from __future__ import annotations
@@ -24,158 +63,431 @@ import urllib.request
 from pathlib import Path
 
 GiB = 2**30
+"""Bytes in a gibibyte — what an operating system calls a "GB"."""
+
 GB = 1e9
-DOSSIE = Path(__file__).parent
+"""Bytes in a gigabyte — what a hardware vendor calls a "GB"."""
 
-# Cache que cresce com o contexto: só estes tipos de camada guardam um token por token.
-# 'sliding_attention' cresce até o teto da janela e para; 'linear_attention' não cresce.
-CRESCE_SEM_LIMITE = {"full_attention"}
-CRESCE_ATE_A_JANELA = {"sliding_attention"}
+ROOT = Path(__file__).resolve().parent
+"""Repository root, used to locate the frozen configs in ``configs/``."""
+
+GROWS_UNBOUNDED = {"full_attention"}
+"""Layer types whose cache grows with every token, forever."""
+
+GROWS_TO_WINDOW = {"sliding_attention"}
+"""Layer types whose cache grows only until the sliding window is full."""
+
+HF_RAW = "https://huggingface.co/{repo}/raw/main/config.json"
+"""Template for the canonical raw ``config.json`` URL on the Hugging Face Hub."""
+
+HF_API = "https://huggingface.co/api/models/{repo}"
+"""Template for the Hub metadata endpoint that reports the safetensors parameter count."""
+
+CONTEXTS = (1024, 8192, 32768, 131072, 262144)
+"""Context lengths reported in the comparison table, in tokens."""
+
+WEIGHT_FORMATS = (
+    ("BF16", 2.0),
+    ("INT8", 1.0),
+    ("4-bit ideal", 0.5),
+    ("Q4_K_M (4.89 bpw)", 4.89 / 8),
+)
+"""Weight formats and their bytes per parameter.
+
+``Q4_K_M`` is llama.cpp's most common 4-bit mix; at 4.89 bits per weight it costs about
+22% more than the ideal 4 bits, because scales and zero-points are stored too.
+"""
 
 
-def baixar(url: str) -> dict:
-    with urllib.request.urlopen(url, timeout=30) as r:
-        return json.loads(r.read())
+def fetch_json(url: str, timeout: int = 30) -> dict:
+    """Download and parse a JSON document.
+
+    Parameters
+    ----------
+    url : str
+        Absolute URL returning a JSON body.
+    timeout : int, optional
+        Socket timeout in seconds, by default 30.
+
+    Returns
+    -------
+    dict
+        The parsed document.
+    """
+    with urllib.request.urlopen(url, timeout=timeout) as response:  # noqa: S310
+        return json.loads(response.read())
 
 
-def carregar(repo: str | None, caminho: str | None) -> tuple[dict, int | None, str]:
-    """Devolve (config, n_params, rotulo). n_params vem dos safetensors quando disponível."""
+def load_config(repo: str | None, path: str | None) -> tuple[dict, int | None, str]:
+    """Load a model config from the Hub or from disk.
+
+    Parameters
+    ----------
+    repo : str or None
+        Hugging Face repository id, e.g. ``"Qwen/Qwen3.8-27B"``. Takes precedence.
+    path : str or None
+        Path to a local ``config.json`` when ``repo`` is not given.
+
+    Returns
+    -------
+    tuple of (dict, int or None, str)
+        The config, the total parameter count when the Hub reports one, and a label
+        for the report header.
+    """
     if repo:
-        cfg = baixar(f"https://huggingface.co/{repo}/raw/main/config.json")
+        config = fetch_json(HF_RAW.format(repo=repo))
         try:
-            meta = baixar(f"https://huggingface.co/api/models/{repo}")
-            n = (meta.get("safetensors") or {}).get("total")
-        except Exception:
-            n = None
-        return cfg, n, repo
-    cfg = json.loads(Path(caminho).read_text())
-    return cfg, None, Path(caminho).stem
+            metadata = fetch_json(HF_API.format(repo=repo))
+            n_params = (metadata.get("safetensors") or {}).get("total")
+        except Exception:  # noqa: BLE001 — the parameter count is optional, the config is not
+            n_params = None
+        return config, n_params, repo
+    return json.loads(Path(path).read_text()), None, Path(path).stem
 
 
-def ficha(cfg: dict) -> dict:
-    """Achata o config (Gemma/Qwen aninham tudo em text_config) e extrai o que importa."""
-    t = cfg.get("text_config", cfg)
-    tipos = t.get("layer_types") or []
-    n_layers = t.get("num_hidden_layers") or len(tipos)
-    if not tipos:  # modelo sem layer_types: todas as camadas são atenção cheia
-        tipos = ["full_attention"] * n_layers
+def architecture(config: dict) -> dict:
+    """Extract the fields that decide memory cost from a raw config.
 
-    n_kv = t.get("num_key_value_heads") or t.get("num_attention_heads")
-    head_dim = t.get("head_dim")
-    if not head_dim:  # fallback clássico quando o config não declara
-        head_dim = t["hidden_size"] // t["num_attention_heads"]
+    Flattens the ``text_config`` nesting used by multimodal releases (Gemma, Qwen-VL)
+    and fills in the fields older configs leave implicit: a model with no ``layer_types``
+    is all full attention, and a missing ``head_dim`` is ``hidden_size / num_attention_heads``.
+
+    Parameters
+    ----------
+    config : dict
+        A parsed ``config.json``.
+
+    Returns
+    -------
+    dict
+        Normalized architecture description consumed by the cost functions.
+    """
+    text = config.get("text_config", config)
+    layer_types = text.get("layer_types") or []
+    n_layers = text.get("num_hidden_layers") or len(layer_types)
+    if not layer_types:
+        layer_types = ["full_attention"] * n_layers
+
+    n_kv = text.get("num_key_value_heads") or text.get("num_attention_heads")
+    head_dim = text.get("head_dim") or text["hidden_size"] // text["num_attention_heads"]
 
     return {
         "layers": n_layers,
-        "tipos": collections.Counter(tipos),
-        "hidden": t["hidden_size"],
-        "n_heads": t.get("num_attention_heads"),
+        "layer_counts": collections.Counter(layer_types),
+        "hidden": text["hidden_size"],
+        "n_heads": text.get("num_attention_heads"),
         "n_kv": n_kv,
         "head_dim": head_dim,
-        "global_head_dim": t.get("global_head_dim"),
-        "janela": t.get("sliding_window"),
-        # K=V compartilhado (Gemma 4): o cache guarda um tensor, não dois.
-        "k_eq_v": bool(t.get("attention_k_eq_v")),
-        "ctx_max": t.get("max_position_embeddings"),
+        "global_head_dim": text.get("global_head_dim"),
+        "window": text.get("sliding_window"),
+        # Gemma 4 stores a single tensor when K and V are identical, halving the cache.
+        "k_eq_v": bool(text.get("attention_k_eq_v")),
+        "max_context": text.get("max_position_embeddings"),
         "linear": {
-            "n_value_heads": t.get("linear_num_value_heads"),
-            "k_dim": t.get("linear_key_head_dim"),
-            "v_dim": t.get("linear_value_head_dim"),
-            "dtype_bytes": 4 if t.get("mamba_ssm_dtype") == "float32" else 2,
+            "n_value_heads": text.get("linear_num_value_heads"),
+            "k_dim": text.get("linear_key_head_dim"),
+            "v_dim": text.get("linear_value_head_dim"),
+            "dtype_bytes": 4 if text.get("mamba_ssm_dtype") == "float32" else 2,
         },
     }
 
 
-def kv_por_token_por_camada(f: dict, bytes_cache: int, global_layer: bool = False) -> int:
-    """Bytes de cache que UM token acrescenta em UMA camada de atenção com KV."""
-    hd = f["global_head_dim"] if (global_layer and f["global_head_dim"]) else f["head_dim"]
-    fator_kv = 1 if f["k_eq_v"] else 2  # K e V, ou um tensor só quando são iguais
-    return fator_kv * f["n_kv"] * hd * bytes_cache
+def kv_bytes_per_token_per_layer(
+    arch: dict, bytes_cache: int, *, global_layer: bool = False
+) -> int:
+    """Return the cache bytes one token adds to one attention layer.
+
+    This is the number the viral formula gets wrong: it uses ``hidden_size``, the width
+    of all *query* heads, where the cache is only as wide as the *key/value* heads.
+
+    Parameters
+    ----------
+    arch : dict
+        Output of :func:`architecture`.
+    bytes_cache : int
+        Bytes per cached element (2 for BF16, 1 for an 8-bit cache).
+    global_layer : bool, optional
+        True for full-attention layers, which some hybrid models give a wider head
+        dimension than their sliding-window layers, by default False.
+
+    Returns
+    -------
+    int
+        Bytes added per token, per layer.
+    """
+    head_dim = (
+        arch["global_head_dim"] if (global_layer and arch["global_head_dim"]) else arch["head_dim"]
+    )
+    kv_factor = 1 if arch["k_eq_v"] else 2
+    return kv_factor * arch["n_kv"] * head_dim * bytes_cache
 
 
-def estado_linear(f: dict) -> int:
-    """Estado recorrente de UMA camada linear. Constante: não depende do contexto."""
-    L = f["linear"]
-    if not L["n_value_heads"]:
+def linear_state_bytes(arch: dict) -> int:
+    """Return the recurrent state size of one linear-attention layer.
+
+    Constant by construction: a recurrent layer summarizes everything it has seen into
+    a fixed-size state, so it costs the same at 1K tokens and at 1M.
+
+    Parameters
+    ----------
+    arch : dict
+        Output of :func:`architecture`.
+
+    Returns
+    -------
+    int
+        Bytes per layer, or 0 when the model has no linear-attention layers.
+    """
+    linear = arch["linear"]
+    if not linear["n_value_heads"]:
         return 0
-    return L["n_value_heads"] * L["k_dim"] * L["v_dim"] * L["dtype_bytes"]
+    return linear["n_value_heads"] * linear["k_dim"] * linear["v_dim"] * linear["dtype_bytes"]
 
 
-def cache_real(f: dict, ctx: int, batch: int, bytes_cache: int) -> int:
+def real_cache_bytes(arch: dict, context: int, batch: int, bytes_cache: int) -> int:
+    """Return the cache the model actually allocates, layer type by layer type.
+
+    Parameters
+    ----------
+    arch : dict
+        Output of :func:`architecture`.
+    context : int
+        Context length in tokens.
+    batch : int
+        Number of concurrent sequences.
+    bytes_cache : int
+        Bytes per cached element.
+
+    Returns
+    -------
+    int
+        Total cache bytes.
+    """
     total = 0
-    for tipo, n in f["tipos"].items():
-        if tipo in CRESCE_SEM_LIMITE:
-            total += n * batch * ctx * kv_por_token_por_camada(f, bytes_cache, global_layer=True)
-        elif tipo in CRESCE_ATE_A_JANELA:
-            efetivo = min(ctx, f["janela"] or ctx)  # a janela é o teto do que se guarda
-            total += n * batch * efetivo * kv_por_token_por_camada(f, bytes_cache)
-        else:  # linear_attention e afins: estado fixo, sem batch de contexto
-            total += n * batch * estado_linear(f)
+    for layer_type, count in arch["layer_counts"].items():
+        if layer_type in GROWS_UNBOUNDED:
+            per_token = kv_bytes_per_token_per_layer(arch, bytes_cache, global_layer=True)
+            total += count * batch * context * per_token
+        elif layer_type in GROWS_TO_WINDOW:
+            effective = min(context, arch["window"] or context)
+            total += count * batch * effective * kv_bytes_per_token_per_layer(arch, bytes_cache)
+        else:
+            total += count * batch * linear_state_bytes(arch)
     return total
 
 
-def cache_do_card(f: dict, ctx: int, batch: int, bytes_cache: int) -> int:
-    """A fórmula literal do card viral: batch x ctx x layers x hidden x 2 x bytes."""
-    return batch * ctx * f["layers"] * f["hidden"] * 2 * bytes_cache
+def viral_formula_bytes(arch: dict, context: int, batch: int, bytes_cache: int) -> int:
+    """Return what the viral formula predicts, applied literally.
+
+    ``batch x context x layers x hidden_size x 2 x bytes`` — every layer counted as full
+    attention, at full model width.
+
+    Parameters
+    ----------
+    arch : dict
+        Output of :func:`architecture`.
+    context : int
+        Context length in tokens.
+    batch : int
+        Number of concurrent sequences.
+    bytes_cache : int
+        Bytes per cached element.
+
+    Returns
+    -------
+    int
+        Predicted cache bytes.
+    """
+    return batch * context * arch["layers"] * arch["hidden"] * 2 * bytes_cache
 
 
-def relatorio(cfg: dict, n_params: int | None, rotulo: str, batch: int, bytes_cache: int) -> None:
-    f = ficha(cfg)
-    print(f"\n{'=' * 68}\n{rotulo}\n{'=' * 68}")
-    print(f"camadas: {f['layers']} -> {dict(f['tipos'])}")
-    print(f"hidden {f['hidden']} | heads {f['n_heads']} / kv {f['n_kv']} "
-          f"(GQA {f['n_heads'] // f['n_kv']}x) | head_dim {f['head_dim']}"
-          + (f" (global {f['global_head_dim']})" if f["global_head_dim"] else "")
-          + (" | K=V compartilhado" if f["k_eq_v"] else "")
-          + (f" | janela {f['janela']}" if f["janela"] else ""))
+def measure(
+    config: dict, n_params: int | None = None, batch: int = 1, bytes_cache: int = 2
+) -> dict:
+    """Compute every published number for one model, as plain data.
 
+    This is the function the tests and ``run_all.py`` call; :func:`report` only formats
+    what this returns.
+
+    Parameters
+    ----------
+    config : dict
+        A parsed ``config.json``.
+    n_params : int or None, optional
+        Total parameter count, used for the weight table, by default None.
+    batch : int, optional
+        Number of concurrent sequences, by default 1.
+    bytes_cache : int, optional
+        Bytes per cached element, by default 2 (BF16).
+
+    Returns
+    -------
+    dict
+        ``{"architecture", "weights", "linear_state", "cache"}`` with byte counts and
+        the GiB values the article publishes.
+    """
+    arch = architecture(config)
+
+    weights = {}
     if n_params:
-        print(f"\nPESOS ({n_params:,} params reais):")
-        for nome, bpp in [("BF16", 2), ("INT8", 1), ("4-bit ideal", 0.5), ("Q4_K_M (4,89 bpw)", 4.89 / 8)]:
-            b = n_params * bpp
-            print(f"  {nome:20} {b / GB:7.2f} GB | {b / GiB:7.2f} GiB")
+        for name, bytes_per_param in WEIGHT_FORMATS:
+            total = n_params * bytes_per_param
+            weights[name] = {"bytes": total, "GB": total / GB, "GiB": total / GiB}
 
-    est = estado_linear(f)
-    if est:
-        n_lin = sum(n for t, n in f["tipos"].items() if t not in CRESCE_SEM_LIMITE | CRESCE_ATE_A_JANELA)
-        print(f"\nestado linear: {est / 2**20:.1f} MiB/camada x {n_lin} = "
-              f"{n_lin * est / GiB:.2f} GiB CONSTANTE (não cresce com o contexto)")
+    per_layer = linear_state_bytes(arch)
+    n_linear = sum(
+        count
+        for layer_type, count in arch["layer_counts"].items()
+        if layer_type not in GROWS_UNBOUNDED | GROWS_TO_WINDOW
+    )
 
-    print(f"\ncache com batch={batch}, {bytes_cache} byte(s)/elemento:")
-    print(f"{'contexto':>10} | {'fórmula do card':>16} | {'real':>12} | {'erro':>6}")
-    print("-" * 54)
-    for ctx in (1024, 8192, 32768, 131072, 262144):
-        if f["ctx_max"] and ctx > f["ctx_max"]:
+    cache = {}
+    for context in CONTEXTS:
+        if arch["max_context"] and context > arch["max_context"]:
             continue
-        card, real = cache_do_card(f, ctx, batch, bytes_cache), cache_real(f, ctx, batch, bytes_cache)
-        print(f"{ctx // 1024:>9}K | {card / GiB:12.2f} GiB | {real / GiB:8.2f} GiB | {card / real:5.1f}x")
+        viral = viral_formula_bytes(arch, context, batch, bytes_cache)
+        real = real_cache_bytes(arch, context, batch, bytes_cache)
+        cache[context] = {
+            "viral_GiB": viral / GiB,
+            "real_GiB": real / GiB,
+            "overestimate_x": viral / real,
+        }
+
+    return {
+        "architecture": {
+            "layers": arch["layers"],
+            "layer_counts": dict(arch["layer_counts"]),
+            "hidden": arch["hidden"],
+            "n_heads": arch["n_heads"],
+            "n_kv": arch["n_kv"],
+            "head_dim": arch["head_dim"],
+            "global_head_dim": arch["global_head_dim"],
+            "window": arch["window"],
+            "k_eq_v": arch["k_eq_v"],
+            "max_context": arch["max_context"],
+        },
+        "weights": weights,
+        "linear_state": {
+            "bytes_per_layer": per_layer,
+            "n_layers": n_linear,
+            "total_GiB": n_linear * per_layer / GiB,
+        },
+        "cache": cache,
+        "batch": batch,
+        "bytes_cache": bytes_cache,
+    }
+
+
+def report(measurement: dict, label: str) -> None:
+    """Print one model's measurement as a human-readable report.
+
+    Parameters
+    ----------
+    measurement : dict
+        Output of :func:`measure`.
+    label : str
+        Header shown above the report.
+    """
+    arch = measurement["architecture"]
+    print(f"\n{'=' * 72}\n{label}\n{'=' * 72}")
+    print(f"layers: {arch['layers']} -> {arch['layer_counts']}")
+
+    line = (
+        f"hidden {arch['hidden']} | heads {arch['n_heads']} / kv {arch['n_kv']} "
+        f"(GQA {arch['n_heads'] // arch['n_kv']}x) | head_dim {arch['head_dim']}"
+    )
+    if arch["global_head_dim"]:
+        line += f" (global {arch['global_head_dim']})"
+    if arch["k_eq_v"]:
+        line += " | shared K=V"
+    if arch["window"]:
+        line += f" | window {arch['window']}"
+    print(line)
+
+    if measurement["weights"]:
+        print("\nWEIGHTS:")
+        for name, value in measurement["weights"].items():
+            print(f"  {name:20} {value['GB']:7.2f} GB | {value['GiB']:7.2f} GiB")
+
+    state = measurement["linear_state"]
+    if state["bytes_per_layer"]:
+        print(
+            f"\nlinear state: {state['bytes_per_layer'] / 2**20:.1f} MiB/layer "
+            f"x {state['n_layers']} = {state['total_GiB']:.2f} GiB CONSTANT "
+            f"(does not grow with context)"
+        )
+
+    print(f"\ncache at batch={measurement['batch']}, {measurement['bytes_cache']} byte(s)/element:")
+    print(f"{'context':>10} | {'viral formula':>16} | {'real':>12} | {'error':>6}")
+    print("-" * 54)
+    for context, value in measurement["cache"].items():
+        print(
+            f"{context // 1024:>9}K | {value['viral_GiB']:12.2f} GiB | "
+            f"{value['real_GiB']:8.2f} GiB | {value['overestimate_x']:5.1f}x"
+        )
+
+
+def article_models() -> list[tuple[Path, int | None, str]]:
+    """Return the frozen configs of the two models discussed in the article.
+
+    Returns
+    -------
+    list of (Path, int or None, str)
+        Config path, parameter count, and report label for each model.
+    """
+    return [
+        (
+            ROOT / "configs" / "Qwen3.8-27B.config.json",
+            27_781_427_952,
+            "Qwen3.8-27B (the article's worked example)",
+        ),
+        (
+            ROOT / "configs" / "gemma-4-26B-A4B-it.config.json",
+            None,
+            "Gemma 4 26B A4B (the model in the viral infographic)",
+        ),
+    ]
 
 
 def main() -> int:
-    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("config", nargs="?", help="caminho de um config.json salvo")
-    p.add_argument("--repo", help="repo do HuggingFace (baixa config + contagem de params)")
-    p.add_argument("--params", type=int, help="parâmetros totais, quando o config vem de arquivo")
-    p.add_argument("--batch", type=int, default=1)
-    p.add_argument("--bytes-cache", type=int, default=2, help="2=BF16, 1=cache quantizado em 8 bits")
-    a = p.parse_args()
+    """Parse arguments, measure, and print.
 
-    if not a.config and not a.repo:  # sem argumento: os dois modelos do artigo
-        padrao = [
-            (DOSSIE / "fontes/config-Qwen3.8-27B.json", 27_781_427_952, "Qwen3.8-27B (exemplo do artigo)"),
-            (DOSSIE / "fontes/config-google_gemma-4-26B-A4B-it.json", None, "Gemma 4 26B A4B (exemplo do card)"),
-        ]
-        achou = False
-        for caminho, params, rotulo in padrao:
-            if caminho.exists():
-                relatorio(json.loads(caminho.read_text()), params, rotulo, a.batch, a.bytes_cache)
-                achou = True
+    Returns
+    -------
+    int
+        0 on success, 1 when the frozen configs are missing.
+    """
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument("config", nargs="?", help="path to a local config.json")
+    parser.add_argument("--repo", help="Hugging Face repo id (downloads config + parameter count)")
+    parser.add_argument("--params", type=int, help="total parameters, when reading a local config")
+    parser.add_argument("--batch", type=int, default=1, help="concurrent sequences (default 1)")
+    parser.add_argument(
+        "--bytes-cache",
+        type=int,
+        default=2,
+        help="bytes per cached element: 2=BF16 (default), 1=8-bit quantized cache",
+    )
+    args = parser.parse_args()
+
+    if not args.config and not args.repo:
+        found = False
+        for path, params, label in article_models():
+            if path.exists():
+                report(
+                    measure(json.loads(path.read_text()), params, args.batch, args.bytes_cache),
+                    label,
+                )
+                found = True
             else:
-                print(f"[faltando] {caminho}", file=sys.stderr)
-        return 0 if achou else 1
+                print(f"[missing] {path}", file=sys.stderr)
+        return 0 if found else 1
 
-    cfg, n, rotulo = carregar(a.repo, a.config)
-    relatorio(cfg, a.params or n, rotulo, a.batch, a.bytes_cache)
+    config, hub_params, label = load_config(args.repo, args.config)
+    report(measure(config, args.params or hub_params, args.batch, args.bytes_cache), label)
     return 0
 
 

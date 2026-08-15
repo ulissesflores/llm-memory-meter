@@ -1,0 +1,33 @@
+{
+  "title": "llm-memory-meter: measuring the real memory footprint of a local LLM from its official configuration",
+  "upload_type": "software",
+  "access_right": "closed",
+  "license": "Apache-2.0",
+  "version": "1.0.0",
+  "creators": [
+    {
+      "name": "Flores, Carlos Ulisses",
+      "orcid": "0000-0002-6034-7765",
+      "affiliation": "Codex Hash Research Laboratory"
+    }
+  ],
+  "keywords": [
+    "LLM inference",
+    "KV cache",
+    "grouped-query attention",
+    "sliding-window attention",
+    "linear attention",
+    "quantization",
+    "local inference",
+    "memory footprint",
+    "reproducibility"
+  ],
+  "related_identifiers": [
+    {
+      "identifier": "https://ulissesflores.com/artigos/memoria-llm-local",
+      "relation": "isSupplementTo",
+      "scheme": "url"
+    }
+  ],
+  "notes": "No DOI without the operator's explicit authorization: access_right stays 'closed' until the release is authorized. Code is licensed Apache-2.0; documentation and declared data are CC BY 4.0 (see LICENSES/). The two model configuration files in configs/ are unmodified third-party redistributions under their upstream terms and are NOT covered by either license — see NOTICE."
+}
